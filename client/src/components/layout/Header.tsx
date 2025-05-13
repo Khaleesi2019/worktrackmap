@@ -51,7 +51,10 @@ export default function Header({ sidebarToggle }: HeaderProps) {
   return (
     <header className="hidden lg:flex justify-between items-center h-16 px-6 bg-background border-b">
       <div>
-        <h1 className="text-xl font-bold">{getPageTitle()}</h1>
+        <div className="flex items-center">
+          <h1 className="text-xl font-bold">{getPageTitle()}</h1>
+          <span className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded ml-2">khaleesiappdesign.com</span>
+        </div>
         <p className="text-sm text-muted-foreground">{getPageDescription()}</p>
       </div>
       <div className="flex items-center space-x-4">

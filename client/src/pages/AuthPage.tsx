@@ -135,8 +135,8 @@ export default function AuthPage() {
           <div className="text-6xl mb-6">
             <i className="fas fa-map-marked-alt"></i>
           </div>
-          <h1 className="text-3xl font-bold mb-2">{t("appName")}</h1>
-          <p className="text-xl mb-6">{t("appTagline")}</p>
+          <h1 className="text-3xl font-bold mb-2">Khaleesi App Design</h1>
+          <p className="text-xl mb-6">Modern employee monitoring & management solution</p>
           <div className="space-y-4">
             <div className="flex items-center">
               <div className="w-10 h-10 rounded-full bg-primary-foreground text-primary flex items-center justify-center mr-4">
