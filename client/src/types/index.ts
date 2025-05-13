@@ -7,6 +7,8 @@ export interface User {
   avatarUrl?: string;
   emoji?: string;
   createdAt: Date;
+  jobTitle?: string;
+  task?: string;
 }
 
 // Location related types

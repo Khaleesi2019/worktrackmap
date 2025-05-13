@@ -89,26 +89,27 @@ export default function Sidebar() {
           <ul className="space-y-1">
             {navItems.map((item) => (
               <li key={item.path}>
-                <Link href={item.path}>
-                  <a 
-                    className={cn(
-                      "flex items-center p-3 rounded-lg",
-                      location === item.path 
-                        ? "bg-sidebar-primary/10 text-sidebar-primary" 
-                        : "text-sidebar-foreground hover:bg-sidebar-accent/50",
-                      "transition-colors"
-                    )}
-                    onClick={closeSidebar}
-                  >
-                    <i className={`${item.icon} ${isCollapsed ? "" : "w-5"}`}></i>
-                    {!isCollapsed && <span className="ml-3">{item.label}</span>}
-                    {!isCollapsed && item.badge && (
-                      <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                        {item.badge}
-                      </span>
-                    )}
-                  </a>
-                </Link>
+                <div
+                  onClick={() => {
+                    window.location.href = item.path;
+                    closeSidebar();
+                  }}
+                  className={cn(
+                    "flex items-center p-3 rounded-lg cursor-pointer",
+                    location === item.path 
+                      ? "bg-sidebar-primary/10 text-sidebar-primary" 
+                      : "text-sidebar-foreground hover:bg-sidebar-accent/50",
+                    "transition-colors"
+                  )}
+                >
+                  <i className={`${item.icon} ${isCollapsed ? "" : "w-5"}`}></i>
+                  {!isCollapsed && <span className="ml-3">{item.label}</span>}
+                  {!isCollapsed && item.badge && (
+                    <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
@@ -195,26 +196,27 @@ export default function Sidebar() {
               <ul className="space-y-1">
                 {navItems.map((item) => (
                   <li key={item.path}>
-                    <Link href={item.path}>
-                      <a 
-                        className={cn(
-                          "flex items-center p-3 rounded-lg",
-                          location === item.path 
-                            ? "bg-sidebar-primary/10 text-sidebar-primary" 
-                            : "text-sidebar-foreground hover:bg-sidebar-accent/50",
-                          "transition-colors"
-                        )}
-                        onClick={closeSidebar}
-                      >
-                        <i className={`${item.icon} w-5`}></i>
-                        <span className="ml-3">{item.label}</span>
-                        {item.badge && (
-                          <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                            {item.badge}
-                          </span>
-                        )}
-                      </a>
-                    </Link>
+                    <div
+                      onClick={() => {
+                        window.location.href = item.path;
+                        closeSidebar();
+                      }}
+                      className={cn(
+                        "flex items-center p-3 rounded-lg cursor-pointer",
+                        location === item.path 
+                          ? "bg-sidebar-primary/10 text-sidebar-primary" 
+                          : "text-sidebar-foreground hover:bg-sidebar-accent/50",
+                        "transition-colors"
+                      )}
+                    >
+                      <i className={`${item.icon} w-5`}></i>
+                      <span className="ml-3">{item.label}</span>
+                      {item.badge && (
+                        <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                          {item.badge}
+                        </span>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>

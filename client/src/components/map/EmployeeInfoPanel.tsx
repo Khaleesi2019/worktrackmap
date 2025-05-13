@@ -103,7 +103,26 @@ export default function EmployeeInfoPanel({
               </div>
             </div>
             
+            {/* Job and Task Information */}
             <div className="bg-accent/50 rounded-lg p-3">
+              <div className="flex items-center mb-2">
+                <i className="fas fa-briefcase text-primary mr-2"></i>
+                <span className="font-medium">{t("jobTitle")}</span>
+              </div>
+              <div className="flex justify-between mb-2">
+                <span>{user.jobTitle || 'No job assigned'}</span>
+              </div>
+              <div className="flex items-center mb-2">
+                <i className="fas fa-tasks text-primary mr-2"></i>
+                <span className="font-medium">{t("currentTask")}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>{user.task || 'No task assigned'}</span>
+              </div>
+            </div>
+            
+            {/* Current Location */}
+            <div className="bg-accent/50 rounded-lg p-3 mt-4">
               <div className="flex items-center mb-2">
                 <i className="fas fa-map-marker-alt text-primary mr-2"></i>
                 <span className="font-medium">{t("currentLocation")}</span>
