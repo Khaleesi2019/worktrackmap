@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text } from 'react-native-web';
 import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
 import { Slider } from '../ui/slider';
