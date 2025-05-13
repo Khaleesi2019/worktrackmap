@@ -1,0 +1,330 @@
+import type { Express, Request, Response } from "express";
+import { createServer, type Server } from "http";
+import { WebSocketServer } from "ws";
+import { WebSocket } from "ws";
+import { storage } from "./storage";
+import { insertUserSchema, insertLocationSchema, insertAttendanceSchema, insertMessageSchema } from "@shared/schema";
+import { z } from "zod";
+import { fromZodError } from "zod-validation-error";
+
+type WebSocketMessage = {
+  type: string;
+  payload: any;
+};
+
+export async function registerRoutes(app: Express): Promise<Server> {
+  const httpServer = createServer(app);
+  
+  // WebSocket setup
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  
+  // Store connected clients with their user IDs
+  const connectedClients = new Map<number, WebSocket[]>();
+  
+  wss.on('connection', (ws) => {
+    let userId: number | null = null;
+    
+    ws.on('message', async (message) => {
+      try {
+        const data = JSON.parse(message.toString()) as WebSocketMessage;
+        
+        switch (data.type) {
+          case 'authenticate':
+            userId = data.payload.userId;
+            if (userId) {
+              // Add this connection to the user's connections
+              if (!connectedClients.has(userId)) {
+                connectedClients.set(userId, []);
+              }
+              connectedClients.get(userId)?.push(ws);
+              
+              // Send last 50 messages to user
+              const recentMessages = await storage.getRecentMessages(50);
+              ws.send(JSON.stringify({
+                type: 'message_history',
+                payload: recentMessages
+              }));
+              
+              // Broadcast user online status
+              broadcastToAll({
+                type: 'user_status',
+                payload: {
+                  userId,
+                  status: 'online'
+                }
+              });
+            }
+            break;
+            
+          case 'location_update':
+            if (userId) {
+              try {
+                const locationData = insertLocationSchema.parse(data.payload);
+                const location = await storage.createLocation(locationData);
+                
+                // Broadcast location update to all users
+                broadcastToAll({
+                  type: 'location_update',
+                  payload: location
+                });
+              } catch (err) {
+                if (err instanceof z.ZodError) {
+                  ws.send(JSON.stringify({
+                    type: 'error',
+                    payload: fromZodError(err).message
+                  }));
+                }
+              }
+            }
+            break;
+            
+          case 'chat_message':
+            if (userId) {
+              try {
+                const messageData = insertMessageSchema.parse({
+                  ...data.payload,
+                  senderId: userId
+                });
+                
+                const message = await storage.createMessage(messageData);
+                
+                // Broadcast to all connected clients
+                broadcastToAll({
+                  type: 'new_message',
+                  payload: message
+                });
+              } catch (err) {
+                if (err instanceof z.ZodError) {
+                  ws.send(JSON.stringify({
+                    type: 'error',
+                    payload: fromZodError(err).message
+                  }));
+                }
+              }
+            }
+            break;
+        }
+      } catch (error) {
+        console.error('WebSocket message error:', error);
+      }
+    });
+    
+    ws.on('close', () => {
+      if (userId) {
+        // Remove this connection from user's connections
+        const userConnections = connectedClients.get(userId) || [];
+        const updatedConnections = userConnections.filter(conn => conn !== ws);
+        
+        if (updatedConnections.length === 0) {
+          // User has no more active connections
+          connectedClients.delete(userId);
+          
+          // Broadcast user offline status
+          broadcastToAll({
+            type: 'user_status',
+            payload: {
+              userId,
+              status: 'offline'
+            }
+          });
+        } else {
+          connectedClients.set(userId, updatedConnections);
+        }
+      }
+    });
+  });
+  
+  // Helper function to broadcast to all connected clients
+  function broadcastToAll(data: WebSocketMessage) {
+    wss.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(data));
+      }
+    });
+  }
+  
+  // =========== REST API Routes ===========
+  
+  // User routes
+  app.post('/api/login', async (req: Request, res: Response) => {
+    try {
+      const { username, password } = req.body;
+      if (!username || !password) {
+        return res.status(400).json({ message: 'Username and password are required' });
+      }
+      
+      const user = await storage.getUserByUsername(username);
+      if (!user || user.password !== password) {
+        return res.status(401).json({ message: 'Invalid credentials' });
+      }
+      
+      // Don't send the password to the client
+      const { password: _, ...userWithoutPassword } = user;
+      
+      return res.status(200).json(userWithoutPassword);
+    } catch (error) {
+      console.error('Login error:', error);
+      return res.status(500).json({ message: 'Server error during login' });
+    }
+  });
+  
+  app.get('/api/users', async (req: Request, res: Response) => {
+    try {
+      const users = await storage.getAllUsers();
+      // Remove passwords from the response
+      const usersWithoutPasswords = users.map(({ password, ...user }) => user);
+      return res.status(200).json(usersWithoutPasswords);
+    } catch (error) {
+      console.error('Get users error:', error);
+      return res.status(500).json({ message: 'Server error fetching users' });
+    }
+  });
+  
+  app.get('/api/users/:id', async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Remove password from the response
+      const { password, ...userWithoutPassword } = user;
+      return res.status(200).json(userWithoutPassword);
+    } catch (error) {
+      console.error('Get user error:', error);
+      return res.status(500).json({ message: 'Server error fetching user' });
+    }
+  });
+  
+  // Location routes
+  app.get('/api/locations', async (req: Request, res: Response) => {
+    try {
+      const locations = await storage.getCurrentLocationForAllUsers();
+      return res.status(200).json(locations);
+    } catch (error) {
+      console.error('Get locations error:', error);
+      return res.status(500).json({ message: 'Server error fetching locations' });
+    }
+  });
+  
+  app.post('/api/locations', async (req: Request, res: Response) => {
+    try {
+      const locationData = insertLocationSchema.parse(req.body);
+      const location = await storage.createLocation(locationData);
+      
+      // Log this activity
+      await storage.logUserActivity({
+        type: 'location_update',
+        userId: locationData.userId,
+        timestamp: new Date(),
+        details: locationData.locationName
+      });
+      
+      return res.status(201).json(location);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: fromZodError(error).message });
+      }
+      console.error('Create location error:', error);
+      return res.status(500).json({ message: 'Server error creating location' });
+    }
+  });
+  
+  app.get('/api/locations/user/:userId', async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const locations = await storage.getLocationsByUserId(userId);
+      return res.status(200).json(locations);
+    } catch (error) {
+      console.error('Get user locations error:', error);
+      return res.status(500).json({ message: 'Server error fetching user locations' });
+    }
+  });
+  
+  // Attendance routes
+  app.get('/api/attendance', async (req: Request, res: Response) => {
+    try {
+      const attendance = await storage.getTodayAttendance();
+      return res.status(200).json(attendance);
+    } catch (error) {
+      console.error('Get attendance error:', error);
+      return res.status(500).json({ message: 'Server error fetching attendance' });
+    }
+  });
+  
+  app.post('/api/attendance', async (req: Request, res: Response) => {
+    try {
+      const attendanceData = insertAttendanceSchema.parse(req.body);
+      const attendance = await storage.createAttendance(attendanceData);
+      
+      // Log this activity
+      await storage.logUserActivity({
+        type: 'check_in',
+        userId: attendanceData.userId,
+        timestamp: attendanceData.checkInTime
+      });
+      
+      return res.status(201).json(attendance);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: fromZodError(error).message });
+      }
+      console.error('Create attendance error:', error);
+      return res.status(500).json({ message: 'Server error creating attendance' });
+    }
+  });
+  
+  app.patch('/api/attendance/:id', async (req: Request, res: Response) => {
+    try {
+      const attendanceId = parseInt(req.params.id);
+      const attendance = await storage.getAttendance(attendanceId);
+      
+      if (!attendance) {
+        return res.status(404).json({ message: 'Attendance record not found' });
+      }
+      
+      const updatedAttendance = await storage.updateAttendance(attendanceId, req.body);
+      
+      // If check-out time was updated, log the activity
+      if (req.body.checkOutTime) {
+        await storage.logUserActivity({
+          type: 'check_out',
+          userId: attendance.userId,
+          timestamp: new Date(req.body.checkOutTime)
+        });
+      }
+      
+      return res.status(200).json(updatedAttendance);
+    } catch (error) {
+      console.error('Update attendance error:', error);
+      return res.status(500).json({ message: 'Server error updating attendance' });
+    }
+  });
+  
+  app.get('/api/attendance/user/:userId', async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const attendance = await storage.getAttendanceByUserId(userId);
+      return res.status(200).json(attendance);
+    } catch (error) {
+      console.error('Get user attendance error:', error);
+      return res.status(500).json({ message: 'Server error fetching user attendance' });
+    }
+  });
+  
+  // Message routes
+  app.get('/api/messages', async (req: Request, res: Response) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const messages = await storage.getRecentMessages(limit);
+      return res.status(200).json(messages);
+    } catch (error) {
+      console.error('Get messages error:', error);
+      return res.status(500).json({ message: 'Server error fetching messages' });
+    }
+  });
+
+  return httpServer;
+}
