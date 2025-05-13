@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
@@ -24,35 +24,47 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import Sidebar from "@/components/layout/Sidebar";
 import MobileNavbar from "@/components/layout/MobileNavbar";
 import Header from "@/components/layout/Header";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
+import { Loader2 } from "lucide-react";
+
+// Loading component
+function Loading() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <Loader2 className="h-12 w-12 animate-spin text-primary" />
+    </div>
+  );
+}
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isInitialized } = useAuth();
   const [, setLocation] = useLocation();
   
+  // Redirect to login if not authenticated and initialization is complete
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (isInitialized && !isLoading && !user) {
       setLocation("/auth");
     }
-  }, [user, isLoading, setLocation]);
+  }, [user, isLoading, isInitialized, setLocation]);
   
-  if (isLoading) {
-    return <div className="flex min-h-screen items-center justify-center">
-      <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full"></div>
-    </div>;
+  // Show loading state while checking authentication
+  if (isLoading || !isInitialized) {
+    return <Loading />;
   }
   
+  // If not authenticated, redirect
   if (!user) {
     return null;
   }
   
+  // If authenticated, render the protected content
   return (
     <div className="flex h-screen lg:pt-0 pt-0">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
-        <main className="flex-1 overflow-hidden bg-surface-light dark:bg-surface-dark">
+        <main className="flex-1 overflow-hidden bg-background">
           {children}
         </main>
         <MobileNavbar />
@@ -61,13 +73,55 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Router() {
-  const { user, isLoading } = useAuth();
+// Public route - will redirect to dashboard if already logged in
+function PublicRoute({ component: Component }: { component: React.ComponentType }) {
+  const { user, isLoading, isInitialized } = useAuth();
+  
+  // Show loading state while checking authentication
+  if (isLoading || !isInitialized) {
+    return <Loading />;
+  }
+  
+  // If authenticated and trying to access a public route, redirect to dashboard
+  if (user) {
+    return <Redirect to="/dashboard" />;
+  }
+  
+  // If not authenticated, render the public component
+  return <Component />;
+}
 
+// Root route - redirects based on auth state
+function RootRedirect() {
+  const { user, isLoading, isInitialized } = useAuth();
+  
+  // Show loading state while checking authentication
+  if (isLoading || !isInitialized) {
+    return <Loading />;
+  }
+  
+  // Redirect based on auth state
+  if (user) {
+    return <Redirect to="/dashboard" />;
+  } else {
+    return <Welcome />;
+  }
+}
+
+function Router() {
   return (
     <Switch>
-      <Route path="/" component={Welcome} />
-      <Route path="/auth" component={AuthPage} />
+      <Route path="/">
+        {() => <RootRedirect />}
+      </Route>
+      
+      <Route path="/auth">
+        {() => <PublicRoute component={AuthPage} />}
+      </Route>
+      
+      <Route path="/welcome">
+        {() => <PublicRoute component={Welcome} />}
+      </Route>
       
       <Route path="/dashboard">
         {() => (
@@ -77,7 +131,7 @@ function Router() {
         )}
       </Route>
       
-      <Route path="/location-tracking">
+      <Route path="/location">
         {() => (
           <ProtectedRoute>
             <LocationTracking />
@@ -117,7 +171,9 @@ function Router() {
         )}
       </Route>
       
-      <Route component={NotFound} />
+      <Route>
+        {() => <NotFound />}
+      </Route>
     </Switch>
   );
 }
@@ -129,8 +185,10 @@ function App() {
         <LanguageProvider>
           <AuthProvider>
             <TooltipProvider>
-              <Toaster />
-              <Router />
+              <Suspense fallback={<Loading />}>
+                <Toaster />
+                <Router />
+              </Suspense>
             </TooltipProvider>
           </AuthProvider>
         </LanguageProvider>
