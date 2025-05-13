@@ -1,21 +1,29 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLanguage } from "@/context/LanguageContext";
+import { useAuth } from "../context/AuthContext";
 import { useLocationTracking } from "@/hooks/useLocationTracking";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useToast } from "@/hooks/use-toast";
 import { formatTime } from "@/lib/utils";
 import MapView from "@/components/map/MapView";
 import EmployeeListPanel from "@/components/employees/EmployeeListPanel";
 import ChatPanel from "@/components/chat/ChatPanel";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { User, Location } from "@/types";
 
 export default function LocationTracking() {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const { isTracking, error: locationError } = useLocationTracking();
   const { locations: wsLocations } = useWebSocket();
+  const { toast } = useToast();
   const [activeEmployeeId, setActiveEmployeeId] = useState<number | null>(null);
   const [showChatPanel, setShowChatPanel] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<string>(formatTime(new Date()));
+  const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(true);
+  const [monitoredLocations, setMonitoredLocations] = useState<Map<number, {lastNotified: Date, originalLocation: Location}>>(new Map());
 
   // Fetch all users
   const { data: users, isLoading: isLoadingUsers } = useQuery<User[]>({
