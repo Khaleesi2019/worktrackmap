@@ -4,16 +4,41 @@ import { initReactI18next } from "react-i18next";
 // English translations
 const enTranslations = {
   // General
-  appName: "WorkTracker",
+  appName: "UbiTrack",
   loading: "Loading...",
+  continue: "Continue",
+  welcomeDescription: "Track your team's location and attendance in real-time",
+  trackInRealTime: "Track in real-time",
+  manageEmployees: "Manage your workforce",
+  communicateWithTeam: "Chat with your team",
+  teamManagement: "Team Management",
+  appTagline: "Real-time location tracking for your team",
+  selectLanguage: "Select your language",
+  selectTheme: "Choose theme",
+  lightMode: "Light Mode",
+  darkMode: "Dark Mode",
+  all: "All",
   
   // Authentication
+  authTitle: "Welcome to UbiTrack",
+  authDescription: "Please sign in to continue or create a new account",
   login: "Login",
+  register: "Register",
   logout: "Logout",
   username: "Username",
   password: "Password",
-  loginButton: "Log In",
+  fullName: "Full Name",
+  jobTitle: "Job Title",
+  currentTask: "Current Task",
+  loginButton: "Sign In",
+  registerButton: "Create Account",
   loginError: "Invalid username or password",
+  forgotPassword: "Forgot password?",
+  needHelp: "Need help?",
+  forgotPasswordMessage: "Please contact your administrator to reset your password.",
+  helpMessage: "For assistance, please contact support at support@ubitrack.com",
+  demoCredentials: "Demo credentials: username \"admin\", password \"admin123\"",
+  backToWelcome: "Back to welcome page",
   
   // Navigation
   dashboard: "Dashboard",
@@ -24,6 +49,13 @@ const enTranslations = {
   chat: "Chat",
   reports: "Reports",
   settings: "Settings",
+  details: "Details",
+  location: "Location",
+  locationDetails: "Location Details",
+  latitude: "Latitude",
+  longitude: "Longitude",
+  locationName: "Location Name",
+  detailedMapView: "Detailed map view coming soon",
   
   // Common actions
   save: "Save",
@@ -43,8 +75,6 @@ const enTranslations = {
   upcomingEvents: "Upcoming Events",
   
   // Settings
-  darkMode: "Dark Mode",
-  language: "Language",
   notifications: "Notifications",
   profile: "Profile",
   
@@ -94,16 +124,41 @@ const enTranslations = {
 // Spanish translations
 const esTranslations = {
   // General
-  appName: "WorkTracker",
+  appName: "UbiTrack",
   loading: "Cargando...",
+  continue: "Continuar",
+  welcomeDescription: "Rastrea la ubicación y asistencia de tu equipo en tiempo real",
+  trackInRealTime: "Seguimiento en tiempo real",
+  manageEmployees: "Gestiona tu equipo",
+  communicateWithTeam: "Comunícate con tu equipo",
+  teamManagement: "Gestión de Equipo",
+  appTagline: "Seguimiento de ubicación en tiempo real para tu equipo",
+  selectLanguage: "Selecciona tu idioma",
+  selectTheme: "Elige el tema",
+  lightMode: "Modo Claro",
+  darkMode: "Modo Oscuro",
+  all: "Todos",
   
   // Authentication
+  authTitle: "Bienvenido a UbiTrack",
+  authDescription: "Inicia sesión para continuar o crea una nueva cuenta",
   login: "Iniciar sesión",
+  register: "Registrarse",
   logout: "Cerrar sesión",
   username: "Nombre de usuario",
   password: "Contraseña",
-  loginButton: "Iniciar sesión",
+  fullName: "Nombre completo",
+  jobTitle: "Puesto de trabajo",
+  currentTask: "Tarea actual",
+  loginButton: "Entrar",
+  registerButton: "Crear cuenta",
   loginError: "Nombre de usuario o contraseña inválidos",
+  forgotPassword: "¿Olvidaste tu contraseña?",
+  needHelp: "¿Necesitas ayuda?",
+  forgotPasswordMessage: "Por favor contacta a tu administrador para restablecer tu contraseña.",
+  helpMessage: "Para obtener ayuda, por favor contacta a soporte en support@ubitrack.com",
+  demoCredentials: "Credenciales de demostración: usuario \"admin\", contraseña \"admin123\"",
+  backToWelcome: "Volver a la página de bienvenida",
   
   // Navigation
   dashboard: "Tablero",
@@ -114,6 +169,13 @@ const esTranslations = {
   chat: "Chat",
   reports: "Informes",
   settings: "Configuración",
+  details: "Detalles",
+  location: "Ubicación",
+  locationDetails: "Detalles de ubicación",
+  latitude: "Latitud",
+  longitude: "Longitud",
+  locationName: "Nombre de ubicación",
+  detailedMapView: "Vista detallada del mapa próximamente",
   
   // Common actions
   save: "Guardar",
@@ -133,13 +195,11 @@ const esTranslations = {
   upcomingEvents: "Próximos eventos",
   
   // Settings
-  darkMode: "Modo oscuro",
-  language: "Idioma",
   notifications: "Notificaciones",
   profile: "Perfil",
   
   // Location tracking
-  locationDescription: "Monitorear ubicaciones de empleados en tiempo real",
+  locationDescription: "Monitorea ubicaciones de empleados en tiempo real",
   lastUpdated: "Última actualización",
   allEmployees: "Todos los empleados",
   onlineEmployees: "En línea",

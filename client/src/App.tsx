@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
@@ -7,7 +7,8 @@ import NotFound from "@/pages/not-found";
 
 // Pages
 import Dashboard from "@/pages/Dashboard";
-import Login from "@/pages/Login";
+import Welcome from "@/pages/Welcome";
+import AuthPage from "@/pages/AuthPage";
 import LocationTracking from "@/pages/LocationTracking";
 import Attendance from "@/pages/Attendance";
 import TeamChat from "@/pages/TeamChat";
@@ -23,13 +24,26 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import Sidebar from "@/components/layout/Sidebar";
 import MobileNavbar from "@/components/layout/MobileNavbar";
 import Header from "@/components/layout/Header";
+import { useEffect } from "react";
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
+  
+  useEffect(() => {
+    if (!isLoading && !user) {
+      setLocation("/auth");
+    }
+  }, [user, isLoading, setLocation]);
+  
+  if (isLoading) {
+    return <div className="flex min-h-screen items-center justify-center">
+      <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full"></div>
+    </div>;
+  }
   
   if (!user) {
-    window.location.href = "/login";
     return null;
   }
   
@@ -48,19 +62,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function Router() {
-  const { user } = useAuth();
-  
+  const { user, isLoading } = useAuth();
+
   return (
     <Switch>
-      <Route path="/login" component={Login} />
-      
-      <Route path="/">
-        {() => (
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        )}
-      </Route>
+      <Route path="/" component={Welcome} />
+      <Route path="/auth" component={AuthPage} />
       
       <Route path="/dashboard">
         {() => (

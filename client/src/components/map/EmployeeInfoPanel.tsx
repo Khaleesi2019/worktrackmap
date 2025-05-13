@@ -4,6 +4,9 @@ import { User, Location } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface EmployeeInfoPanelProps {
   user: User;
@@ -21,87 +24,156 @@ export default function EmployeeInfoPanel({
   const { t } = useLanguage();
   
   return (
-    <div className="absolute right-4 bottom-20 w-80 bg-background dark:bg-background rounded-lg shadow-xl overflow-hidden transform transition-transform duration-300 translate-y-0 z-[500]">
-      <div className="p-4 bg-primary text-primary-foreground flex items-center justify-between">
-        <h3 className="font-medium">Employee Details</h3>
-        <button className="text-primary-foreground hover:text-white focus:outline-none" onClick={onClose}>
-          <i className="fas fa-times"></i>
-        </button>
-      </div>
-      <div className="p-4">
-        <div className="flex items-center space-x-3 mb-4">
-          <Avatar className="w-12 h-12">
-            {user.avatarUrl ? (
-              <AvatarImage src={user.avatarUrl} alt={user.name} className="object-cover" />
-            ) : (
-              <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-            )}
-          </Avatar>
-          <div>
-            <h4 className="font-medium">{user.name}</h4>
-            <span className="text-sm text-muted-foreground">{user.role}</span>
-          </div>
-          {location && (
-            <div className={cn(
-              "ml-auto text-xs py-1 px-2 rounded-full",
-              location.status === "active" ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200" :
-              location.status === "away" ? "bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200" :
-              "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200"
-            )}>
-              <span>{location.status.charAt(0).toUpperCase() + location.status.slice(1)}</span>
+    <Card className="absolute right-4 left-4 bottom-20 md:left-auto md:w-96 bg-background/95 dark:bg-background/95 backdrop-blur-sm shadow-xl overflow-hidden z-[500] border border-primary/20">
+      <CardHeader className="p-4 pb-2 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <Avatar className="w-12 h-12 border-2 border-primary-foreground mr-3">
+              {user.avatarUrl ? (
+                <AvatarImage src={user.avatarUrl} alt={user.name} className="object-cover" />
+              ) : (
+                <AvatarFallback className="bg-primary-foreground text-primary font-semibold">
+                  {user.name.charAt(0)}
+                </AvatarFallback>
+              )}
+            </Avatar>
+            <div>
+              <CardTitle className="text-lg">{user.name}</CardTitle>
+              <span className="text-sm opacity-80">{user.role}</span>
             </div>
-          )}
-        </div>
-        
-        <div className="space-y-3 text-sm">
-          {location && (
-            <>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">{t("checkInTime")}:</span>
-                <span className="font-medium">
-                  {location.timestamp ? formatTime(location.timestamp) : '-'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">{t("currentLocation")}:</span>
-                <span className="font-medium">{location.locationName || 'Unknown location'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">{t("status")}:</span>
-                <span className={cn(
-                  "font-medium",
-                  getStatusTextColor(location.status)
-                )}>
-                  {location.status.charAt(0).toUpperCase() + location.status.slice(1)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">{t("lastUpdate")}:</span>
-                <span className="font-medium">
-                  {location.timestamp ? formatRelativeTime(location.timestamp) : '-'}
-                </span>
-              </div>
-            </>
-          )}
-        </div>
-        
-        <div className="mt-4 space-x-2 flex">
-          <Button 
-            className="flex-1 flex items-center justify-center" 
-            onClick={onMessageClick}
+          </div>
+          <button 
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30 focus:outline-none transition-colors"
+            onClick={onClose}
           >
-            <i className="fas fa-comment-alt mr-2"></i>
-            <span>{t("message")}</span>
-          </Button>
-          <Button 
-            variant="outline" 
-            className="flex-1 flex items-center justify-center"
-          >
-            <i className="fas fa-phone-alt mr-2"></i>
-            <span>{t("call")}</span>
-          </Button>
+            <i className="fas fa-times"></i>
+          </button>
         </div>
-      </div>
-    </div>
+      </CardHeader>
+      
+      <Tabs defaultValue="details" className="w-full">
+        <div className="px-4 pt-2">
+          <TabsList className="w-full grid grid-cols-2">
+            <TabsTrigger value="details">{t("details")}</TabsTrigger>
+            <TabsTrigger value="location">{t("location")}</TabsTrigger>
+          </TabsList>
+        </div>
+      
+        <TabsContent value="details" className="p-0 m-0">
+          <CardContent className="p-4 space-y-4">
+            {location && (
+              <div className="flex items-center justify-between">
+                <span>{t("status")}</span>
+                <Badge 
+                  className={cn(
+                    "capitalize",
+                    location.status === "active" ? "bg-green-500" :
+                    location.status === "away" ? "bg-yellow-500" :
+                    "bg-gray-500"
+                  )}
+                >
+                  {location.status}
+                </Badge>
+              </div>
+            )}
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-accent/50 rounded-lg p-3 text-center">
+                <div className="text-2xl text-primary mb-1">
+                  <i className="fas fa-clock"></i>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {t("checkInTime")}
+                </div>
+                <div className="font-medium">
+                  {location?.timestamp ? formatTime(location.timestamp) : '-'}
+                </div>
+              </div>
+              
+              <div className="bg-accent/50 rounded-lg p-3 text-center">
+                <div className="text-2xl text-primary mb-1">
+                  <i className="fas fa-history"></i>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {t("lastUpdate")}
+                </div>
+                <div className="font-medium">
+                  {location?.timestamp ? formatRelativeTime(location.timestamp) : '-'}
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-accent/50 rounded-lg p-3">
+              <div className="flex items-center mb-2">
+                <i className="fas fa-map-marker-alt text-primary mr-2"></i>
+                <span className="font-medium">{t("currentLocation")}</span>
+              </div>
+              <div>
+                {location?.locationName || 'Unknown location'}
+              </div>
+            </div>
+          </CardContent>
+        </TabsContent>
+        
+        <TabsContent value="location" className="p-0 m-0">
+          <CardContent className="p-4">
+            <div className="bg-accent/50 rounded-lg p-3 mb-4">
+              <div className="flex items-center mb-2">
+                <i className="fas fa-info-circle text-primary mr-2"></i>
+                <span className="font-medium">{t("locationDetails")}</span>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{t("latitude")}:</span>
+                  <span className="font-medium">
+                    {location?.latitude || '-'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{t("longitude")}:</span>
+                  <span className="font-medium">
+                    {location?.longitude || '-'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{t("locationName")}:</span>
+                  <span className="font-medium">
+                    {location?.locationName || 'Unknown'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-accent/50 rounded-lg h-40 flex items-center justify-center">
+              <div className="text-center">
+                <div className="text-4xl mb-2 text-primary">
+                  <i className="fas fa-map"></i>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t("detailedMapView")}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </TabsContent>
+      </Tabs>
+      
+      <CardFooter className="p-4 pt-2 flex space-x-2">
+        <Button 
+          className="flex-1 flex items-center justify-center" 
+          onClick={onMessageClick}
+        >
+          <i className="fas fa-comment-alt mr-2"></i>
+          <span>{t("message")}</span>
+        </Button>
+        <Button 
+          variant="outline" 
+          className="flex-1 flex items-center justify-center"
+        >
+          <i className="fas fa-phone-alt mr-2"></i>
+          <span>{t("call")}</span>
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }
