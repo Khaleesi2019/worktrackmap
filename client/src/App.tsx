@@ -14,6 +14,7 @@ import Attendance from "@/pages/Attendance";
 import TeamChat from "@/pages/TeamChat";
 import Reports from "@/pages/Reports";
 import Settings from "@/pages/Settings";
+import RemoteAssistance from "@/pages/RemoteAssistance";
 
 // Context Providers
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -40,24 +41,24 @@ function Loading() {
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading, isInitialized } = useAuth();
   const [, setLocation] = useLocation();
-  
+
   // Redirect to login if not authenticated and initialization is complete
   useEffect(() => {
     if (isInitialized && !isLoading && !user) {
       setLocation("/auth");
     }
   }, [user, isLoading, isInitialized, setLocation]);
-  
+
   // Show loading state while checking authentication
   if (isLoading || !isInitialized) {
     return <Loading />;
   }
-  
+
   // If not authenticated, redirect
   if (!user) {
     return null;
   }
-  
+
   // If authenticated, render the protected content
   return (
     <div className="flex h-screen lg:pt-0 pt-0">
@@ -76,17 +77,17 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 // Public route - will redirect to dashboard if already logged in
 function PublicRoute({ component: Component }: { component: React.ComponentType }) {
   const { user, isLoading, isInitialized } = useAuth();
-  
+
   // Show loading state while checking authentication
   if (isLoading || !isInitialized) {
     return <Loading />;
   }
-  
+
   // If authenticated and trying to access a public route, redirect to dashboard
   if (user) {
     return <Redirect to="/dashboard" />;
   }
-  
+
   // If not authenticated, render the public component
   return <Component />;
 }
@@ -94,12 +95,12 @@ function PublicRoute({ component: Component }: { component: React.ComponentType 
 // Root route - redirects based on auth state
 function RootRedirect() {
   const { user, isLoading, isInitialized } = useAuth();
-  
+
   // Show loading state while checking authentication
   if (isLoading || !isInitialized) {
     return <Loading />;
   }
-  
+
   // Redirect based on auth state
   if (user) {
     return <Redirect to="/dashboard" />;
@@ -114,15 +115,15 @@ function Router() {
       <Route path="/">
         {() => <RootRedirect />}
       </Route>
-      
+
       <Route path="/auth">
         {() => <PublicRoute component={AuthPage} />}
       </Route>
-      
+
       <Route path="/welcome">
         {() => <PublicRoute component={Welcome} />}
       </Route>
-      
+
       <Route path="/dashboard">
         {() => (
           <ProtectedRoute>
@@ -130,7 +131,7 @@ function Router() {
           </ProtectedRoute>
         )}
       </Route>
-      
+
       <Route path="/location">
         {() => (
           <ProtectedRoute>
@@ -138,7 +139,7 @@ function Router() {
           </ProtectedRoute>
         )}
       </Route>
-      
+
       <Route path="/attendance">
         {() => (
           <ProtectedRoute>
@@ -146,7 +147,7 @@ function Router() {
           </ProtectedRoute>
         )}
       </Route>
-      
+
       <Route path="/chat">
         {() => (
           <ProtectedRoute>
@@ -154,7 +155,7 @@ function Router() {
           </ProtectedRoute>
         )}
       </Route>
-      
+
       <Route path="/reports">
         {() => (
           <ProtectedRoute>
@@ -162,7 +163,7 @@ function Router() {
           </ProtectedRoute>
         )}
       </Route>
-      
+
       <Route path="/settings">
         {() => (
           <ProtectedRoute>
@@ -171,6 +172,14 @@ function Router() {
         )}
       </Route>
       
+      <Route path="/remote-assistance">
+        {() => (
+          <ProtectedRoute>
+            <RemoteAssistance />
+          </ProtectedRoute>
+        )}
+      </Route>
+
       <Route>
         {() => <NotFound />}
       </Route>

@@ -60,7 +60,7 @@ export default function Sidebar() {
             </button>
           </div>
         </div>
-        
+
         {/* User profile section */}
         <div className="p-4 border-b border-sidebar-border">
           <div className="flex items-center space-x-3">
@@ -83,7 +83,7 @@ export default function Sidebar() {
             )}
           </div>
         </div>
-        
+
         {/* Navigation menu */}
         <nav className="p-2">
           <ul className="space-y-1">
@@ -114,7 +114,7 @@ export default function Sidebar() {
             ))}
           </ul>
         </nav>
-        
+
         {/* Settings section */}
         {!isCollapsed && (
           <div className="absolute bottom-0 w-full p-4 border-t border-sidebar-border">
@@ -169,7 +169,7 @@ export default function Sidebar() {
                 <i className="fas fa-times"></i>
               </button>
             </div>
-            
+
             {/* User profile */}
             <div className="p-4 border-b border-sidebar-border">
               <div className="flex items-center space-x-3">
@@ -190,7 +190,7 @@ export default function Sidebar() {
                 </div>
               </div>
             </div>
-            
+
             {/* Navigation menu */}
             <nav className="p-2">
               <ul className="space-y-1">
