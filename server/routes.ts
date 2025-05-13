@@ -7,6 +7,8 @@ import { insertUserSchema, insertLocationSchema, insertAttendanceSchema, insertM
 import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { setupAuth } from "./auth";
+import express from "express";
+import { checkRustDeskInstalled, connectToRustDesk, installRustDesk } from "./rustdesk";
 
 type WebSocketMessage = {
   type: string;
@@ -15,23 +17,23 @@ type WebSocketMessage = {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
-  
+
   // Set up authentication
   setupAuth(app);
-  
+
   // WebSocket setup
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
-  
+
   // Store connected clients with their user IDs
   const connectedClients = new Map<number, WebSocket[]>();
-  
+
   wss.on('connection', (ws) => {
     let userId: number | null = null;
-    
+
     ws.on('message', async (message) => {
       try {
         const data = JSON.parse(message.toString()) as WebSocketMessage;
-        
+
         switch (data.type) {
           case 'authenticate':
             userId = data.payload.userId;
@@ -41,14 +43,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 connectedClients.set(userId, []);
               }
               connectedClients.get(userId)?.push(ws);
-              
+
               // Send last 50 messages to user
               const recentMessages = await storage.getRecentMessages(50);
               ws.send(JSON.stringify({
                 type: 'message_history',
                 payload: recentMessages
               }));
-              
+
               // Broadcast user online status
               broadcastToAll({
                 type: 'user_status',
@@ -59,7 +61,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
             }
             break;
-            
+
           case 'location_update':
             if (userId) {
               try {
@@ -68,7 +70,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   userId
                 });
                 const location = await storage.createLocation(locationData);
-                
+
                 // Broadcast location update to all users
                 broadcastToAll({
                   type: 'location_update',
@@ -84,7 +86,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
             break;
-            
+
           case 'chat_message':
             if (userId) {
               try {
@@ -92,9 +94,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   ...data.payload,
                   senderId: userId
                 });
-                
+
                 const message = await storage.createMessage(messageData);
-                
+
                 // Broadcast to all connected clients
                 broadcastToAll({
                   type: 'new_message',
@@ -115,17 +117,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error('WebSocket message error:', error);
       }
     });
-    
+
     ws.on('close', () => {
       if (userId) {
         // Remove this connection from user's connections
         const userConnections = connectedClients.get(userId) || [];
         const updatedConnections = userConnections.filter(conn => conn !== ws);
-        
+
         if (updatedConnections.length === 0) {
           // User has no more active connections
           connectedClients.delete(userId);
-          
+
           // Broadcast user offline status
           broadcastToAll({
             type: 'user_status',
@@ -140,7 +142,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
   });
-  
+
   // Helper function to broadcast to all connected clients
   function broadcastToAll(data: WebSocketMessage) {
     wss.clients.forEach(client => {
@@ -149,9 +151,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
   }
-  
+
   // =========== REST API Routes ===========
-  
+
   // Middleware to check if user is authenticated
   const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
     if (req.isAuthenticated()) {
@@ -159,10 +161,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     res.status(401).json({ message: 'Unauthorized' });
   };
-  
+
   // User routes
   // /api/login, /api/register, /api/logout, and /api/user are handled by setupAuth
-  
+
   app.get('/api/users', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const users = await storage.getAllUsers();
@@ -174,16 +176,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: 'Server error fetching users' });
     }
   });
-  
+
   app.get('/api/users/:id', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.id);
       const user = await storage.getUser(userId);
-      
+
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
-      
+
       // Remove password from the response
       const { password, ...userWithoutPassword } = user;
       return res.status(200).json(userWithoutPassword);
@@ -192,7 +194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: 'Server error fetching user' });
     }
   });
-  
+
   // Location routes
   app.get('/api/locations', isAuthenticated, async (req: Request, res: Response) => {
     try {
@@ -203,7 +205,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: 'Server error fetching locations' });
     }
   });
-  
+
   app.post('/api/locations', isAuthenticated, async (req: Request, res: Response) => {
     try {
       // Use the authenticated user's ID
@@ -211,14 +213,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!userId) {
         return res.status(401).json({ message: 'User not authenticated' });
       }
-      
+
       const locationData = insertLocationSchema.parse({
         ...req.body,
         userId
       });
-      
+
       const location = await storage.createLocation(locationData);
-      
+
       // Log this activity
       await storage.logUserActivity({
         type: 'location_update',
@@ -226,7 +228,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         timestamp: new Date(),
         details: locationData.locationName || 'Unknown location'
       });
-      
+
       return res.status(201).json(location);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -236,7 +238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: 'Server error creating location' });
     }
   });
-  
+
   app.get('/api/locations/user/:userId', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.userId);
@@ -247,7 +249,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: 'Server error fetching user locations' });
     }
   });
-  
+
   // Attendance routes
   app.get('/api/attendance', isAuthenticated, async (req: Request, res: Response) => {
     try {
@@ -258,7 +260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: 'Server error fetching attendance' });
     }
   });
-  
+
   app.post('/api/attendance', isAuthenticated, async (req: Request, res: Response) => {
     try {
       // Use the authenticated user's ID
@@ -266,21 +268,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!userId) {
         return res.status(401).json({ message: 'User not authenticated' });
       }
-      
+
       const attendanceData = insertAttendanceSchema.parse({
         ...req.body,
         userId
       });
-      
+
       const attendance = await storage.createAttendance(attendanceData);
-      
+
       // Log this activity
       await storage.logUserActivity({
         type: 'check_in',
         userId,
         timestamp: attendanceData.checkInTime
       });
-      
+
       return res.status(201).json(attendance);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -290,23 +292,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: 'Server error creating attendance' });
     }
   });
-  
+
   app.patch('/api/attendance/:id', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const attendanceId = parseInt(req.params.id);
       const attendance = await storage.getAttendance(attendanceId);
-      
+
       if (!attendance) {
         return res.status(404).json({ message: 'Attendance record not found' });
       }
-      
+
       // Ensure users can only update their own attendance
       if (attendance.userId !== req.user?.id) {
         return res.status(403).json({ message: 'Not authorized to update this attendance record' });
       }
-      
+
       const updatedAttendance = await storage.updateAttendance(attendanceId, req.body);
-      
+
       // If check-out time was updated, log the activity
       if (req.body.checkOutTime) {
         await storage.logUserActivity({
@@ -315,23 +317,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timestamp: new Date(req.body.checkOutTime)
         });
       }
-      
+
       return res.status(200).json(updatedAttendance);
     } catch (error) {
       console.error('Update attendance error:', error);
       return res.status(500).json({ message: 'Server error updating attendance' });
     }
   });
-  
+
   app.get('/api/attendance/user/:userId', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.userId);
-      
+
       // Ensure users can only access their own attendance or admins can access any
       if (userId !== req.user?.id && req.user?.role !== 'Administrator') {
         return res.status(403).json({ message: 'Not authorized to access this attendance data' });
       }
-      
+
       const attendance = await storage.getAttendanceByUserId(userId);
       return res.status(200).json(attendance);
     } catch (error) {
@@ -339,7 +341,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: 'Server error fetching user attendance' });
     }
   });
-  
+
   // Message routes
   app.get('/api/messages', isAuthenticated, async (req: Request, res: Response) => {
     try {
@@ -350,6 +352,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Get messages error:', error);
       return res.status(500).json({ message: 'Server error fetching messages' });
     }
+  });
+
+  // RustDesk routes
+  app.get("/api/rustdesk/status", async (req, res) => {
+    const installed = await checkRustDeskInstalled();
+    res.json({ installed });
+  });
+
+  app.post("/api/rustdesk/connect", async (req, res) => {
+    const { serverId, password } = req.body;
+    const result = await connectToRustDesk(serverId, password);
+    res.json(result);
+  });
+
+  app.post("/api/rustdesk/install", async (req, res) => {
+    const result = await installRustDesk();
+    res.json(result);
   });
 
   return httpServer;
