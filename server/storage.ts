@@ -5,6 +5,12 @@ import {
   Message, InsertMessage,
   UserActivity
 } from "@shared/schema";
+import { db } from "./db";
+import { users, locations, attendance, messages } from "@shared/schema";
+import { eq, desc, and, gte } from "drizzle-orm";
+import connectPgSimple from "connect-pg-simple";
+import session from "express-session";
+import { pool } from "./db";
 
 export interface IStorage {
   // User methods
@@ -35,178 +41,183 @@ export interface IStorage {
   
   // Activity logging
   logUserActivity(activity: UserActivity): Promise<void>;
+  
+  // Session store
+  sessionStore: session.Store;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private locations: Map<number, Location>;
-  private attendance: Map<number, Attendance>;
-  private messages: Map<number, Message>;
-  private userId: number;
-  private locationId: number;
-  private attendanceId: number;
-  private messageId: number;
-
+export class DatabaseStorage implements IStorage {
+  sessionStore: session.Store;
+  
   constructor() {
-    this.users = new Map();
-    this.locations = new Map();
-    this.attendance = new Map();
-    this.messages = new Map();
-    this.userId = 1;
-    this.locationId = 1;
-    this.attendanceId = 1;
-    this.messageId = 1;
-    
-    // Initialize with sample admin user
-    this.createUser({
-      username: "admin",
-      password: "admin123",
-      name: "Sofia Martinez",
-      role: "Admin",
-      avatarUrl: "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e",
-      emoji: "👩‍💼"
+    const PostgresStore = connectPgSimple(session);
+    this.sessionStore = new PostgresStore({
+      pool,
+      createTableIfMissing: true,
     });
   }
-
-  // User methods
+  
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
-
+  
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
   }
-
+  
   async createUser(user: InsertUser): Promise<User> {
-    const id = this.userId++;
-    const newUser: User = { ...user, id, createdAt: new Date() };
-    this.users.set(id, newUser);
+    const [newUser] = await db.insert(users).values({
+      ...user,
+      createdAt: new Date()
+    }).returning();
     return newUser;
   }
-
+  
   async getAllUsers(): Promise<User[]> {
-    return Array.from(this.users.values());
+    return await db.select().from(users);
   }
-
+  
   async updateUser(id: number, data: Partial<User>): Promise<User | undefined> {
-    const user = await this.getUser(id);
-    if (!user) return undefined;
-    
-    const updatedUser = { ...user, ...data };
-    this.users.set(id, updatedUser);
+    const [updatedUser] = await db
+      .update(users)
+      .set(data)
+      .where(eq(users.id, id))
+      .returning();
     return updatedUser;
   }
-
-  // Location methods
+  
   async getLocation(id: number): Promise<Location | undefined> {
-    return this.locations.get(id);
+    const [location] = await db.select().from(locations).where(eq(locations.id, id));
+    return location;
   }
-
+  
   async getLocationsByUserId(userId: number): Promise<Location[]> {
-    return Array.from(this.locations.values()).filter(
-      (location) => location.userId === userId
-    );
+    return await db
+      .select()
+      .from(locations)
+      .where(eq(locations.userId, userId));
   }
-
+  
   async createLocation(location: InsertLocation): Promise<Location> {
-    const id = this.locationId++;
-    const newLocation: Location = { ...location, id, timestamp: new Date() };
-    this.locations.set(id, newLocation);
+    const [newLocation] = await db
+      .insert(locations)
+      .values({
+        ...location,
+        timestamp: new Date()
+      })
+      .returning();
     return newLocation;
   }
-
+  
   async updateLocation(userId: number, data: Partial<Location>): Promise<Location | undefined> {
-    const userLocations = await this.getLocationsByUserId(userId);
-    if (userLocations.length === 0) return undefined;
+    // Find the most recent location for this user
+    const [userLocation] = await db
+      .select()
+      .from(locations)
+      .where(eq(locations.userId, userId))
+      .orderBy(desc(locations.timestamp))
+      .limit(1);
+      
+    if (!userLocation) return undefined;
     
-    // Update the most recent location
-    const mostRecent = userLocations.sort((a, b) => 
-      b.timestamp.getTime() - a.timestamp.getTime()
-    )[0];
-    
-    const updatedLocation = { ...mostRecent, ...data, timestamp: new Date() };
-    this.locations.set(mostRecent.id, updatedLocation);
+    // Update the location
+    const [updatedLocation] = await db
+      .update(locations)
+      .set({
+        ...data,
+        timestamp: new Date()
+      })
+      .where(eq(locations.id, userLocation.id))
+      .returning();
+      
     return updatedLocation;
   }
-
+  
   async getCurrentLocationForAllUsers(): Promise<Location[]> {
-    const userIds = new Set(Array.from(this.users.keys()));
-    const result: Location[] = [];
+    // This query is more complex - for each user, we need the most recent location
+    // We'll do this by getting all locations and processing them in memory
+    const allLocations = await db.select().from(locations).orderBy(desc(locations.timestamp));
     
-    for (const userId of userIds) {
-      const locations = await this.getLocationsByUserId(userId);
-      if (locations.length > 0) {
-        // Get the most recent location
-        const mostRecent = locations.sort((a, b) => 
-          b.timestamp.getTime() - a.timestamp.getTime()
-        )[0];
-        result.push(mostRecent);
+    // Create a map to store the most recent location for each user
+    const userLocations = new Map<number, Location>();
+    
+    for (const location of allLocations) {
+      const userId = location.userId;
+      // If we don't have a location for this user yet, use this one
+      if (!userLocations.has(userId)) {
+        userLocations.set(userId, location);
       }
     }
     
-    return result;
+    return Array.from(userLocations.values());
   }
-
-  // Attendance methods
+  
   async getAttendance(id: number): Promise<Attendance | undefined> {
-    return this.attendance.get(id);
+    const [record] = await db.select().from(attendance).where(eq(attendance.id, id));
+    return record;
   }
-
+  
   async getAttendanceByUserId(userId: number): Promise<Attendance[]> {
-    return Array.from(this.attendance.values()).filter(
-      (record) => record.userId === userId
-    );
+    return await db
+      .select()
+      .from(attendance)
+      .where(eq(attendance.userId, userId));
   }
-
-  async createAttendance(attendance: InsertAttendance): Promise<Attendance> {
-    const id = this.attendanceId++;
-    const newAttendance: Attendance = { ...attendance, id };
-    this.attendance.set(id, newAttendance);
+  
+  async createAttendance(attendanceRecord: InsertAttendance): Promise<Attendance> {
+    const [newAttendance] = await db
+      .insert(attendance)
+      .values(attendanceRecord)
+      .returning();
     return newAttendance;
   }
-
+  
   async updateAttendance(id: number, data: Partial<Attendance>): Promise<Attendance | undefined> {
-    const attendance = await this.getAttendance(id);
-    if (!attendance) return undefined;
-    
-    const updatedAttendance = { ...attendance, ...data };
-    this.attendance.set(id, updatedAttendance);
+    const [updatedAttendance] = await db
+      .update(attendance)
+      .set(data)
+      .where(eq(attendance.id, id))
+      .returning();
     return updatedAttendance;
   }
-
+  
   async getTodayAttendance(): Promise<Attendance[]> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    return Array.from(this.attendance.values()).filter((record) => {
-      const recordDate = new Date(record.checkInTime);
-      recordDate.setHours(0, 0, 0, 0);
-      return recordDate.getTime() === today.getTime();
-    });
+    return await db
+      .select()
+      .from(attendance)
+      .where(gte(attendance.checkInTime, today));
   }
-
-  // Message methods
+  
   async getMessage(id: number): Promise<Message | undefined> {
-    return this.messages.get(id);
+    const [message] = await db.select().from(messages).where(eq(messages.id, id));
+    return message;
   }
-
+  
   async createMessage(message: InsertMessage): Promise<Message> {
-    const id = this.messageId++;
-    const newMessage: Message = { ...message, id, timestamp: new Date() };
-    this.messages.set(id, newMessage);
+    const [newMessage] = await db
+      .insert(messages)
+      .values({
+        ...message,
+        timestamp: new Date()
+      })
+      .returning();
     return newMessage;
   }
-
+  
   async getRecentMessages(limit: number = 50): Promise<Message[]> {
-    return Array.from(this.messages.values())
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-      .slice(0, limit)
-      .reverse(); // Return in chronological order
+    return await db
+      .select()
+      .from(messages)
+      .orderBy(desc(messages.timestamp))
+      .limit(limit)
+      .then(msgs => msgs.reverse()); // Return in chronological order
   }
-
-  // Activity logging
+  
   async logUserActivity(activity: UserActivity): Promise<void> {
     // Create a system message based on the activity type
     let content = "";
@@ -237,182 +248,156 @@ export class MemStorage implements IStorage {
 }
 
 // Initialize storage
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
 
-// Add some initial data
-(async () => {
-  // Create sample users
-  const carlos = await storage.createUser({
-    username: "carlos",
-    password: "password",
-    name: "Carlos Rodriguez",
-    role: "Developer",
-    avatarUrl: "https://images.unsplash.com/photo-1568602471122-7832951cc4c5",
-    emoji: "👨‍💻"
-  });
-  
-  const ana = await storage.createUser({
-    username: "ana",
-    password: "password",
-    name: "Ana Martinez",
-    role: "Project Manager",
-    avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330",
-    emoji: "👩‍💼"
-  });
-  
-  const miguel = await storage.createUser({
-    username: "miguel",
-    password: "password",
-    name: "Miguel Torres",
-    role: "Field Technician",
-    avatarUrl: "https://images.unsplash.com/photo-1558203728-00f45181dd84",
-    emoji: "👨‍🔧"
-  });
-  
-  const laura = await storage.createUser({
-    username: "laura",
-    password: "password",
-    name: "Laura Silva",
-    role: "UX Designer",
-    avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb",
-    emoji: "👩‍🎨"
-  });
-  
-  const alex = await storage.createUser({
-    username: "alex",
-    password: "password",
-    name: "Alex Morales",
-    role: "Data Analyst",
-    avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d",
-    emoji: "🧑‍🚀"
-  });
-  
-  const javier = await storage.createUser({
-    username: "javier",
-    password: "password",
-    name: "Javier Ruiz",
-    role: "Research Specialist",
-    avatarUrl: "https://images.unsplash.com/photo-1618077360395-f3068be8e001",
-    emoji: "👨‍🔬"
-  });
-  
-  // Add some sample locations
-  await storage.createLocation({
-    userId: carlos.id,
-    latitude: "40.712776",
-    longitude: "-74.005974",
-    locationName: "Main Office",
-    status: "active"
-  });
-  
-  await storage.createLocation({
-    userId: ana.id,
-    latitude: "40.714541",
-    longitude: "-74.007081",
-    locationName: "Main Office",
-    status: "active"
-  });
-  
-  await storage.createLocation({
-    userId: miguel.id,
-    latitude: "40.711531",
-    longitude: "-74.013512",
-    locationName: "Field Site A",
-    status: "active"
-  });
-  
-  await storage.createLocation({
-    userId: laura.id,
-    latitude: "40.718217",
-    longitude: "-74.014729",
-    locationName: "Design Studio",
-    status: "away"
-  });
-  
-  await storage.createLocation({
-    userId: alex.id,
-    latitude: "40.712857",
-    longitude: "-74.009951",
-    locationName: "Main Office",
-    status: "active"
-  });
-  
-  await storage.createLocation({
-    userId: javier.id,
-    latitude: "40.709114",
-    longitude: "-74.011139",
-    locationName: "Research Lab",
-    status: "offline"
-  });
-  
-  // Create attendance records
-  const today = new Date();
-  
-  await storage.createAttendance({
-    userId: carlos.id,
-    checkInTime: new Date(today.setHours(9, 30, 0, 0)),
-    status: "present"
-  });
-  
-  await storage.createAttendance({
-    userId: ana.id,
-    checkInTime: new Date(today.setHours(9, 5, 0, 0)),
-    status: "present"
-  });
-  
-  await storage.createAttendance({
-    userId: miguel.id,
-    checkInTime: new Date(today.setHours(8, 30, 0, 0)),
-    status: "present"
-  });
-  
-  await storage.createAttendance({
-    userId: laura.id,
-    checkInTime: new Date(today.setHours(9, 45, 0, 0)),
-    status: "present"
-  });
-  
-  await storage.createAttendance({
-    userId: alex.id,
-    checkInTime: new Date(today.setHours(8, 45, 0, 0)),
-    status: "present"
-  });
-  
-  // Add some messages
-  await storage.createMessage({
-    senderId: ana.id,
-    content: "Good morning team! Is everyone on site today? We have a client visit at 2pm."
-  });
-  
-  await storage.createMessage({
-    senderId: 1, // Admin
-    content: "I'm at the main office. Will be in the meeting room preparing for the presentation."
-  });
-  
-  await storage.createMessage({
-    senderId: carlos.id,
-    content: "I'm working remotely this morning but will be at the office for the client meeting. Do we need to prepare any extra materials?"
-  });
-  
-  await storage.createMessage({
-    senderId: miguel.id,
-    content: "Just finished the site inspection. Everything looks good! 👍"
-  });
-  
-  await storage.createMessage({
-    senderId: ana.id,
-    content: "@Carlos please bring the project portfolio and the latest analytics report."
-  });
-  
-  await storage.createMessage({
-    senderId: 1, // Admin
-    content: "I'll set up the conference room and make sure all the presentations are ready to go."
-  });
-  
-  // Log activity
-  await storage.logUserActivity({
-    type: "check_in",
-    userId: miguel.id,
-    timestamp: new Date(today.setHours(8, 30, 0, 0))
-  });
-})();
+// Seed database with initial data if needed
+async function seedDatabase() {
+  try {
+    // Check if we have any users already
+    const existingUsers = await storage.getAllUsers();
+    
+    if (existingUsers.length === 0) {
+      console.log("🌱 Seeding database with initial data...");
+      
+      // Create sample admin user
+      const admin = await storage.createUser({
+        username: "admin",
+        password: "admin123",
+        name: "Sofia Martinez",
+        role: "Administrator",
+        avatarUrl: "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e",
+        emoji: "👩‍💼"
+      });
+      
+      // Create sample users
+      const carlos = await storage.createUser({
+        username: "carlos",
+        password: "password",
+        name: "Carlos Rodriguez",
+        role: "Developer",
+        avatarUrl: "https://images.unsplash.com/photo-1568602471122-7832951cc4c5",
+        emoji: "👨‍💻"
+      });
+      
+      const ana = await storage.createUser({
+        username: "ana",
+        password: "password",
+        name: "Ana Martinez",
+        role: "Project Manager",
+        avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330",
+        emoji: "👩‍💼"
+      });
+      
+      const miguel = await storage.createUser({
+        username: "miguel",
+        password: "password",
+        name: "Miguel Torres",
+        role: "Field Technician",
+        avatarUrl: "https://images.unsplash.com/photo-1558203728-00f45181dd84",
+        emoji: "👨‍🔧"
+      });
+      
+      const laura = await storage.createUser({
+        username: "laura",
+        password: "password",
+        name: "Laura Silva",
+        role: "UX Designer",
+        avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb",
+        emoji: "👩‍🎨"
+      });
+      
+      const alex = await storage.createUser({
+        username: "alex",
+        password: "password",
+        name: "Alex Morales",
+        role: "Data Analyst",
+        avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d",
+        emoji: "🧑‍🚀"
+      });
+      
+      // Add some sample locations
+      await storage.createLocation({
+        userId: carlos.id,
+        latitude: "40.712776",
+        longitude: "-74.005974",
+        locationName: "Main Office",
+        status: "active"
+      });
+      
+      await storage.createLocation({
+        userId: ana.id,
+        latitude: "40.714541",
+        longitude: "-74.007081",
+        locationName: "Main Office",
+        status: "active"
+      });
+      
+      await storage.createLocation({
+        userId: miguel.id,
+        latitude: "40.711531",
+        longitude: "-74.013512",
+        locationName: "Field Site A",
+        status: "active"
+      });
+      
+      await storage.createLocation({
+        userId: laura.id,
+        latitude: "40.718217",
+        longitude: "-74.014729",
+        locationName: "Design Studio",
+        status: "away"
+      });
+      
+      await storage.createLocation({
+        userId: alex.id,
+        latitude: "40.712857",
+        longitude: "-74.009951",
+        locationName: "Main Office",
+        status: "active"
+      });
+      
+      // Create today's attendance records
+      const today = new Date();
+      
+      await storage.createAttendance({
+        userId: carlos.id,
+        checkInTime: new Date(today.setHours(9, 30, 0, 0)),
+        status: "present"
+      });
+      
+      await storage.createAttendance({
+        userId: ana.id,
+        checkInTime: new Date(today.setHours(9, 5, 0, 0)),
+        status: "present"
+      });
+      
+      await storage.createAttendance({
+        userId: miguel.id,
+        checkInTime: new Date(today.setHours(8, 30, 0, 0)),
+        status: "present"
+      });
+      
+      // Add some initial messages
+      await storage.createMessage({
+        senderId: ana.id,
+        content: "Good morning team! Is everyone on site today? We have a client visit at 2pm.",
+        isSystemMessage: false
+      });
+      
+      await storage.createMessage({
+        senderId: admin.id,
+        content: "I'm at the main office. Will be in the meeting room preparing for the presentation.",
+        isSystemMessage: false
+      });
+      
+      console.log("✅ Database seeded successfully");
+    } else {
+      console.log("💡 Database already has data, skipping seed");
+    }
+  } catch (error) {
+    console.error("Error seeding database:", error);
+  }
+}
+
+// Run the seed function
+seedDatabase();
