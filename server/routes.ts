@@ -1,4 +1,4 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
 import { WebSocket } from "ws";
@@ -6,6 +6,7 @@ import { storage } from "./storage";
 import { insertUserSchema, insertLocationSchema, insertAttendanceSchema, insertMessageSchema } from "@shared/schema";
 import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
+import { setupAuth } from "./auth";
 
 type WebSocketMessage = {
   type: string;
@@ -14,6 +15,9 @@ type WebSocketMessage = {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
+  
+  // Set up authentication
+  setupAuth(app);
   
   // WebSocket setup
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
@@ -59,7 +63,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           case 'location_update':
             if (userId) {
               try {
-                const locationData = insertLocationSchema.parse(data.payload);
+                const locationData = insertLocationSchema.parse({
+                  ...data.payload,
+                  userId
+                });
                 const location = await storage.createLocation(locationData);
                 
                 // Broadcast location update to all users
@@ -145,30 +152,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // =========== REST API Routes ===========
   
-  // User routes
-  app.post('/api/login', async (req: Request, res: Response) => {
-    try {
-      const { username, password } = req.body;
-      if (!username || !password) {
-        return res.status(400).json({ message: 'Username and password are required' });
-      }
-      
-      const user = await storage.getUserByUsername(username);
-      if (!user || user.password !== password) {
-        return res.status(401).json({ message: 'Invalid credentials' });
-      }
-      
-      // Don't send the password to the client
-      const { password: _, ...userWithoutPassword } = user;
-      
-      return res.status(200).json(userWithoutPassword);
-    } catch (error) {
-      console.error('Login error:', error);
-      return res.status(500).json({ message: 'Server error during login' });
+  // Middleware to check if user is authenticated
+  const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
+    if (req.isAuthenticated()) {
+      return next();
     }
-  });
+    res.status(401).json({ message: 'Unauthorized' });
+  };
   
-  app.get('/api/users', async (req: Request, res: Response) => {
+  // User routes
+  // /api/login, /api/register, /api/logout, and /api/user are handled by setupAuth
+  
+  app.get('/api/users', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const users = await storage.getAllUsers();
       // Remove passwords from the response
@@ -180,7 +175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.get('/api/users/:id', async (req: Request, res: Response) => {
+  app.get('/api/users/:id', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.id);
       const user = await storage.getUser(userId);
@@ -199,7 +194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Location routes
-  app.get('/api/locations', async (req: Request, res: Response) => {
+  app.get('/api/locations', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const locations = await storage.getCurrentLocationForAllUsers();
       return res.status(200).json(locations);
@@ -209,17 +204,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post('/api/locations', async (req: Request, res: Response) => {
+  app.post('/api/locations', isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const locationData = insertLocationSchema.parse(req.body);
+      // Use the authenticated user's ID
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      const locationData = insertLocationSchema.parse({
+        ...req.body,
+        userId
+      });
+      
       const location = await storage.createLocation(locationData);
       
       // Log this activity
       await storage.logUserActivity({
         type: 'location_update',
-        userId: locationData.userId,
+        userId,
         timestamp: new Date(),
-        details: locationData.locationName
+        details: locationData.locationName || 'Unknown location'
       });
       
       return res.status(201).json(location);
@@ -232,7 +237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.get('/api/locations/user/:userId', async (req: Request, res: Response) => {
+  app.get('/api/locations/user/:userId', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.userId);
       const locations = await storage.getLocationsByUserId(userId);
@@ -244,7 +249,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Attendance routes
-  app.get('/api/attendance', async (req: Request, res: Response) => {
+  app.get('/api/attendance', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const attendance = await storage.getTodayAttendance();
       return res.status(200).json(attendance);
@@ -254,15 +259,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post('/api/attendance', async (req: Request, res: Response) => {
+  app.post('/api/attendance', isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const attendanceData = insertAttendanceSchema.parse(req.body);
+      // Use the authenticated user's ID
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      const attendanceData = insertAttendanceSchema.parse({
+        ...req.body,
+        userId
+      });
+      
       const attendance = await storage.createAttendance(attendanceData);
       
       // Log this activity
       await storage.logUserActivity({
         type: 'check_in',
-        userId: attendanceData.userId,
+        userId,
         timestamp: attendanceData.checkInTime
       });
       
@@ -276,13 +291,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.patch('/api/attendance/:id', async (req: Request, res: Response) => {
+  app.patch('/api/attendance/:id', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const attendanceId = parseInt(req.params.id);
       const attendance = await storage.getAttendance(attendanceId);
       
       if (!attendance) {
         return res.status(404).json({ message: 'Attendance record not found' });
+      }
+      
+      // Ensure users can only update their own attendance
+      if (attendance.userId !== req.user?.id) {
+        return res.status(403).json({ message: 'Not authorized to update this attendance record' });
       }
       
       const updatedAttendance = await storage.updateAttendance(attendanceId, req.body);
@@ -303,9 +323,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.get('/api/attendance/user/:userId', async (req: Request, res: Response) => {
+  app.get('/api/attendance/user/:userId', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.userId);
+      
+      // Ensure users can only access their own attendance or admins can access any
+      if (userId !== req.user?.id && req.user?.role !== 'Administrator') {
+        return res.status(403).json({ message: 'Not authorized to access this attendance data' });
+      }
+      
       const attendance = await storage.getAttendanceByUserId(userId);
       return res.status(200).json(attendance);
     } catch (error) {
@@ -315,7 +341,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Message routes
-  app.get('/api/messages', async (req: Request, res: Response) => {
+  app.get('/api/messages', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
       const messages = await storage.getRecentMessages(limit);

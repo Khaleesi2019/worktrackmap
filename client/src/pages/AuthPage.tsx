@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -13,6 +13,7 @@ import { useForm, SubmitHandler } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Loader2 } from "lucide-react";
 
 const loginSchema = z.object({
   username: z.string().min(1, { message: "Username is required" }),
@@ -25,19 +26,30 @@ const registrationSchema = z.object({
   username: z.string().min(3, { message: "Username must be at least 3 characters" }),
   password: z.string().min(6, { message: "Password must be at least 6 characters" }),
   name: z.string().min(2, { message: "Name is required" }),
+  role: z.string().default("Employee"),
   jobTitle: z.string().min(2, { message: "Job title is required" }),
   task: z.string().min(2, { message: "Current task is required" }),
+  emoji: z.string().optional(),
 });
 
 type RegistrationFormValues = z.infer<typeof registrationSchema>;
 
 export default function AuthPage() {
-  const { login, isLoading } = useAuth();
+  const { user, login, register, isLoading } = useAuth();
   const { t, language, toggleLanguage } = useLanguage();
   const { theme, toggleTheme } = useTheme();
   const [, setLocation] = useLocation();
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("login");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Redirect to dashboard if already logged in
+  useEffect(() => {
+    if (user) {
+      setLocation("/dashboard");
+    }
+  }, [user, setLocation]);
 
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -53,13 +65,17 @@ export default function AuthPage() {
       username: "",
       password: "",
       name: "",
+      role: "Employee",
       jobTitle: "",
       task: "",
+      emoji: "👤", // Default emoji
     },
   });
 
   const onLoginSubmit: SubmitHandler<LoginFormValues> = async (data) => {
     setLoginError(null);
+    setIsSubmitting(true);
+    
     try {
       const success = await login(data.username, data.password);
       if (success) {
@@ -68,13 +84,29 @@ export default function AuthPage() {
         setLoginError(t("loginError"));
       }
     } catch (error) {
+      console.error(error);
       setLoginError(t("loginError"));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const onRegistrationSubmit: SubmitHandler<RegistrationFormValues> = async (data) => {
-    // This would normally register a new user, but for now we'll just show a message
-    alert(`Registration submitted for ${data.name} as ${data.jobTitle}. You would now be redirected to location permission.`);
+    setRegistrationError(null);
+    setIsSubmitting(true);
+    
+    try {
+      const success = await register(data);
+      if (success) {
+        // On successful registration and auto-login, redirect to dashboard
+        setLocation("/dashboard");
+      }
+    } catch (error) {
+      console.error(error);
+      setRegistrationError(t("registrationError"));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleForgotPassword = () => {
@@ -83,6 +115,16 @@ export default function AuthPage() {
 
   const handleNeedHelp = () => {
     alert(t("helpMessage"));
+  };
+
+  // Random emoji selection
+  const randomEmoji = () => {
+    const emojis = ["👤", "👩‍💼", "👨‍💼", "👷‍♀️", "👷‍♂️", "👩‍🔧", "👨‍🔧", "👩‍🚀", "👨‍🚀", "👩‍🎓", "👨‍🎓"];
+    return emojis[Math.floor(Math.random() * emojis.length)];
+  };
+
+  const generateEmoji = () => {
+    registrationForm.setValue("emoji", randomEmoji());
   };
 
   return (
@@ -222,10 +264,12 @@ export default function AuthPage() {
                         </Button>
                       </div>
 
-                      <Button type="submit" className="w-full" disabled={isLoading}>
-                        {isLoading ? (
-                          <i className="fas fa-circle-notch fa-spin mr-2"></i>
-                        ) : null}
+                      <Button 
+                        type="submit" 
+                        className="w-full" 
+                        disabled={isLoading || isSubmitting}
+                      >
+                        {(isLoading || isSubmitting) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {t("loginButton")}
                       </Button>
                     </form>
@@ -238,6 +282,12 @@ export default function AuthPage() {
 
                 {/* Registration Tab */}
                 <TabsContent value="register">
+                  {registrationError && (
+                    <Alert variant="destructive" className="mb-4">
+                      <AlertDescription>{registrationError}</AlertDescription>
+                    </Alert>
+                  )}
+
                   <Form {...registrationForm}>
                     <form onSubmit={registrationForm.handleSubmit(onRegistrationSubmit)} className="space-y-4">
                       <FormField
@@ -282,19 +332,45 @@ export default function AuthPage() {
                         )}
                       />
 
-                      <FormField
-                        control={registrationForm.control}
-                        name="jobTitle"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>{t("jobTitle")}</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Field Technician" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                          control={registrationForm.control}
+                          name="jobTitle"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t("jobTitle")}</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Field Technician" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={registrationForm.control}
+                          name="emoji"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t("emoji")}</FormLabel>
+                              <div className="flex items-center space-x-2">
+                                <FormControl>
+                                  <Input {...field} className="text-center text-xl" />
+                                </FormControl>
+                                <Button 
+                                  type="button" 
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={generateEmoji}
+                                >
+                                  <i className="fas fa-dice-three"></i>
+                                </Button>
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
 
                       <FormField
                         control={registrationForm.control}
@@ -310,7 +386,12 @@ export default function AuthPage() {
                         )}
                       />
 
-                      <Button type="submit" className="w-full">
+                      <Button 
+                        type="submit" 
+                        className="w-full"
+                        disabled={isLoading || isSubmitting}
+                      >
+                        {(isLoading || isSubmitting) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {t("registerButton")}
                       </Button>
                     </form>
