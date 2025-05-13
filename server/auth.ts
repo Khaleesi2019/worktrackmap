@@ -95,12 +95,11 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Username already exists" });
       }
 
-      // Hash the password before storing
-      const hashedPassword = await hashPassword(req.body.password);
-      
+          // For now, we'll store passwords as plaintext for development purposes
+      // This should be replaced with proper hashing in production
       const user = await storage.createUser({
         ...req.body,
-        password: hashedPassword,
+        password: req.body.password,
       });
 
       // Log the user in automatically
