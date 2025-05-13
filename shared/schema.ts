@@ -10,6 +10,8 @@ export const users = pgTable("users", {
   role: text("role").notNull(),
   avatarUrl: text("avatar_url"),
   emoji: text("emoji").default("👤"),
+  jobTitle: text("job_title"),
+  task: text("task"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
