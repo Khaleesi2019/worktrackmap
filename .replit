@@ -42,4 +42,17 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
+args = "pkill -f \"node|npm\" || true"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
 args = "npm run dev"
+
+[[workflows.workflow]]
+name = "Clone RustDesk"
+author = 42640585
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "git clone https://github.com/rustdesk/rustdesk.git"
