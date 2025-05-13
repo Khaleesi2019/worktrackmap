@@ -1,7 +1,6 @@
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import WebRTC from 'react-native-webrtc';
 
 interface RemoteConnectionProps {
   deviceId: string;
@@ -9,51 +8,83 @@ interface RemoteConnectionProps {
 }
 
 export const RemoteConnection: React.FC<RemoteConnectionProps> = ({ deviceId, isAdmin }) => {
-  const peerConnection = useRef<any>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const peerConnection = useRef<RTCPeerConnection | null>(null);
 
   useEffect(() => {
-    initializeConnection();
+    if (isAdmin) {
+      initializeControlConnection();
+    } else {
+      initializeShareConnection();
+    }
     return () => cleanupConnection();
-  }, []);
+  }, [isAdmin]);
 
-  const initializeConnection = async () => {
+  const initializeControlConnection = async () => {
     try {
-      peerConnection.current = new WebRTC.RTCPeerConnection({
+      peerConnection.current = new RTCPeerConnection({
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
       });
       
-      // Add connection handlers
-      if (isAdmin) {
-        setupAdminConnection();
-      } else {
-        setupClientConnection();
-      }
+      peerConnection.current.ontrack = (event) => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = event.streams[0];
+        }
+      };
+
+      setIsConnected(true);
     } catch (error) {
-      console.error('Connection error:', error);
+      console.error('Control connection error:', error);
     }
   };
 
-  const setupAdminConnection = () => {
-    // Admin-specific connection logic
-  };
+  const initializeShareConnection = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false
+      });
 
-  const setupClientConnection = () => {
-    // Client-specific connection logic with auto-accept
+      peerConnection.current = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      });
+
+      stream.getTracks().forEach(track => {
+        if (peerConnection.current) {
+          peerConnection.current.addTrack(track, stream);
+        }
+      });
+
+      setIsSharing(true);
+    } catch (error) {
+      console.error('Share connection error:', error);
+    }
   };
 
   const cleanupConnection = () => {
     if (peerConnection.current) {
       peerConnection.current.close();
     }
+    setIsConnected(false);
+    setIsSharing(false);
   };
 
   return (
-    <View>
-      <Text>Estado de conexión: {peerConnection.current ? 'Activo' : 'Desconectado'}</Text>
-      {isAdmin && (
-        <TouchableOpacity onPress={initializeConnection}>
-          <Text>Reconectar</Text>
-        </TouchableOpacity>
+    <View style={{ flex: 1 }}>
+      {isAdmin ? (
+        <>
+          <video ref={videoRef} autoPlay style={{ width: '100%', height: '100%' }} />
+          <Text>Estado: {isConnected ? 'Conectado' : 'Desconectado'}</Text>
+        </>
+      ) : (
+        <>
+          <Text>Compartiendo pantalla: {isSharing ? 'Sí' : 'No'}</Text>
+          <TouchableOpacity onPress={initializeShareConnection}>
+            <Text>Iniciar compartir pantalla</Text>
+          </TouchableOpacity>
+        </>
       )}
     </View>
   );
