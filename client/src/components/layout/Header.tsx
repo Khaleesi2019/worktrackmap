@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
+import { MonitorIcon } from "@radix-ui/react-icons";
 
 interface HeaderProps {
   sidebarToggle?: () => void;

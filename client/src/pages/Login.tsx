@@ -142,35 +142,45 @@ export default function Login() {
             
           </Form>
           <div className="flex flex-col space-y-4 w-full max-w-sm">
-            <div className="flex justify-end">
-              <Switch checked={isAdmin} onCheckedChange={setIsAdmin} />
-              <Label className="ml-2">Admin Mode</Label>
-            </div>
+            <div className="flex flex-col space-y-4">
+        <Input
+          type="text"
+          placeholder="Employee Name" 
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="text-lg"
+        />
+        <Input
+          type="tel"
+          placeholder="Phone Number"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          maxLength={10}
+          className="text-lg"
+        />
+        <div className="text-xs text-muted-foreground text-center">
+          Enter your details to start your workday
+        </div>
+        
+        <div className="text-xs text-center mt-4">
+          <button 
+            onClick={() => setIsAdmin(true)}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            Administrative Access
+          </button>
+        </div>
 
-            {isAdmin ? (
-              <Input
-                type="password"
-                placeholder="Enter Admin Code"
-                value={adminCode}
-                onChange={(e) => setAdminCode(e.target.value)}
-              />
-            ) : (
-              <>
-                <Input
-                  type="text"
-                  placeholder="Enter Your Name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-                <Input
-                  type="tel"
-                  placeholder="Enter 10-digit Phone Number"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  maxLength={10}
-                />
-              </>
-            )}
+        {isAdmin && (
+          <Input
+            type="password"
+            placeholder="Admin Code" 
+            value={adminCode}
+            onChange={(e) => setAdminCode(e.target.value)}
+            className="mt-2"
+          />
+        )}
+      </div>
 
             <Button onClick={handleLogin}>
               {isAdmin ? 'Admin Login' : 'Start Check-in'}
