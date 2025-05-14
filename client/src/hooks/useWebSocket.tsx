@@ -14,23 +14,23 @@ export function useWebSocket() {
   const [locations, setLocations] = useState<Location[]>([]);
   const socketRef = useRef<WebSocket | null>(null);
   const { toast } = useToast();
-  
+
   // Function to connect to WebSocket
   const connect = useCallback((userId: number) => {
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       return; // Already connected
     }
-    
+
     // Create WebSocket connection
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws`;
-    
+
     socketRef.current = new WebSocket(wsUrl);
-    
+
     socketRef.current.onopen = () => {
       setIsConnected(true);
       console.log("WebSocket connected");
-      
+
       // Authenticate with the server
       if (socketRef.current) {
         socketRef.current.send(JSON.stringify({
@@ -39,20 +39,20 @@ export function useWebSocket() {
         }));
       }
     };
-    
+
     socketRef.current.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data) as WebSocketMessage;
-        
+
         switch (data.type) {
           case "message_history":
             setMessages(data.payload);
             break;
-            
+
           case "new_message":
             setMessages(prev => [...prev, data.payload]);
             break;
-            
+
           case "user_status":
             setUserStatuses(prev => {
               const newMap = new Map(prev);
@@ -60,7 +60,7 @@ export function useWebSocket() {
               return newMap;
             });
             break;
-            
+
           case "location_update":
             setLocations(prev => {
               // Filter out previous location for this user if it exists
@@ -69,7 +69,7 @@ export function useWebSocket() {
               return [...filtered, data.payload];
             });
             break;
-            
+
           case "error":
             toast({
               title: "WebSocket Error",
@@ -82,17 +82,17 @@ export function useWebSocket() {
         console.error("Failed to parse WebSocket message:", error);
       }
     };
-    
+
     socketRef.current.onclose = () => {
       setIsConnected(false);
       console.log("WebSocket disconnected");
-      
+
       // Attempt to reconnect after a delay
       setTimeout(() => {
         if (userId) connect(userId);
       }, 5000);
     };
-    
+
     socketRef.current.onerror = (error) => {
       console.error("WebSocket error:", error);
       toast({
@@ -102,7 +102,7 @@ export function useWebSocket() {
       });
     };
   }, [toast]);
-  
+
   // Function to disconnect from WebSocket
   const disconnect = useCallback(() => {
     if (socketRef.current) {
@@ -111,7 +111,7 @@ export function useWebSocket() {
       setIsConnected(false);
     }
   }, []);
-  
+
   // Function to send a chat message
   const sendMessage = useCallback((content: string) => {
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
@@ -123,7 +123,7 @@ export function useWebSocket() {
     }
     return false;
   }, []);
-  
+
   // Function to send a location update
   const updateLocation = useCallback((userId: number, location: { 
     latitude: string; 
@@ -143,7 +143,7 @@ export function useWebSocket() {
     }
     return false;
   }, []);
-  
+
   // Clean up WebSocket on component unmount
   useEffect(() => {
     return () => {
@@ -152,7 +152,7 @@ export function useWebSocket() {
       }
     };
   }, []);
-  
+
   return {
     isConnected,
     messages,
