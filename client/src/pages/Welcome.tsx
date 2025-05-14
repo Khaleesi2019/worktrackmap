@@ -73,13 +73,60 @@ export default function Welcome() {
                 </div>
               </div>
 
-              <Button
-                onClick={handleContinue}
-                size="lg"
-                className="w-full mt-6"
-              >
-                {t("continue")} <i className="fas fa-arrow-right ml-2"></i>
-              </Button>
+              <div className="space-y-4">
+                <Button
+                  onClick={handleContinue}
+                  size="lg"
+                  className="w-full"
+                >
+                  {t("continue")} <i className="fas fa-arrow-right ml-2"></i>
+                </Button>
+                
+                <Button 
+                  variant="outline"
+                  onClick={() => setShowTour(true)}
+                  size="lg"
+                  className="w-full"
+                >
+                  Take a Tour <i className="fas fa-compass ml-2"></i>
+                </Button>
+              </div>
+
+              <Dialog open={showTour} onOpenChange={setShowTour}>
+                <DialogContent className="max-w-4xl">
+                  <DialogHeader>
+                    <DialogTitle>Welcome to Employee Management System</DialogTitle>
+                  </DialogHeader>
+                  
+                  <div className="space-y-4">
+                    <div className="p-4 border rounded">
+                      <h3 className="font-bold mb-2">Employee Check-in/out</h3>
+                      <p>Employees can easily check in/out by entering their name and phone number. Simple and efficient attendance tracking.</p>
+                    </div>
+
+                    <div className="p-4 border rounded">
+                      <h3 className="font-bold mb-2">Admin Dashboard (Code: 1020)</h3>
+                      <p>Administrators have access to:</p>
+                      <ul className="list-disc ml-4">
+                        <li>Real-time attendance monitoring</li>
+                        <li>Employee location tracking</li>
+                        <li>Remote assistance capabilities</li>
+                        <li>Performance analytics</li>
+                        <li>Team chat functionality</li>
+                      </ul>
+                    </div>
+
+                    <div className="p-4 border rounded">
+                      <h3 className="font-bold mb-2">Remote Support</h3>
+                      <p>Secure remote desktop access for technical support, completely invisible to employees.</p>
+                    </div>
+                  </div>
+
+                  <DialogFooter>
+                    <Button onClick={() => setShowTour(false)}>Got it!</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </CardContent>
         </Card>
