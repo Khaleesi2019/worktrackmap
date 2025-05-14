@@ -6,7 +6,31 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/ThemeContext";
 
+import NumericKeypad from "@/components/ui/NumericKeypad"; // Assume you build this component
+
 export default function Sidebar() {
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const handlePinEnter = (enteredPin) => {
+    if (enteredPin === "1020") {
+      setIsUnlocked(true);
+    }
+  };
+
+  return (
+    <aside>
+      {!isUnlocked ? (
+        <NumericKeypad onPinEnter={handlePinEnter} />
+      ) : (
+        <nav>
+          <ul>
+            <li><Link href="/entrada">Entrada</Link></li>
+            <li><Link href="/salida">Salida</Link></li>
+          </ul>
+        </nav>
+      )}
+    </aside>
+  );
+} {
   const [location] = useLocation();
   const { t } = useLanguage();
   const { theme, toggleTheme } = useTheme();
