@@ -13,6 +13,8 @@ import { useForm, SubmitHandler } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "@/components/ui/use-toast";
 
 const loginSchema = z.object({
   username: z.string().min(1, { message: "Username is required" }),
@@ -27,6 +29,51 @@ export default function Login() {
   const { theme, toggleTheme } = useTheme();
   const [, setLocation] = useLocation();
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminCode, setAdminCode] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+
+  const handleLogin = async () => {
+    if (isAdmin) {
+      if (adminCode !== '1020') {
+        toast({
+          title: "Invalid Admin Code",
+          description: "Please enter the correct admin code",
+          variant: "destructive"
+        });
+        return;
+      }
+    } else {
+      if (!name || !phone || phone.length !== 10 || !/^\d+$/.test(phone)) {
+        toast({
+          title: "Invalid Input",
+          description: "Please enter your name and a valid 10-digit phone number",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone, isAdmin, adminCode })
+      });
+
+      if (!response.ok) throw new Error('Login failed');
+
+      window.location.href = isAdmin ? '/dashboard' : '/attendance';
+    } catch (error) {
+      toast({
+        title: "Login Failed",
+        description: "Please try again",
+        variant: "destructive"
+      });
+    }
+  };
+
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -92,43 +139,44 @@ export default function Login() {
           )}
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="username"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("username")}</FormLabel>
-                    <FormControl>
-                      <Input placeholder="admin" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("password")}</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
-                  <i className="fas fa-circle-notch fa-spin mr-2"></i>
-                ) : null}
-                {t("loginButton")}
-              </Button>
-            </form>
+            
           </Form>
+          <div className="flex flex-col space-y-4 w-full max-w-sm">
+            <div className="flex justify-end">
+              <Switch checked={isAdmin} onCheckedChange={setIsAdmin} />
+              <Label className="ml-2">Admin Mode</Label>
+            </div>
+
+            {isAdmin ? (
+              <Input
+                type="password"
+                placeholder="Enter Admin Code"
+                value={adminCode}
+                onChange={(e) => setAdminCode(e.target.value)}
+              />
+            ) : (
+              <>
+                <Input
+                  type="text"
+                  placeholder="Enter Your Name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+                <Input
+                  type="tel"
+                  placeholder="Enter 10-digit Phone Number"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  maxLength={10}
+                />
+              </>
+            )}
+
+            <Button onClick={handleLogin}>
+              {isAdmin ? 'Admin Login' : 'Start Check-in'}
+            </Button>
+          </div>
+
 
           <div className="mt-4 text-center text-xs text-muted-foreground">
             <p>Demo credentials: username "admin", password "admin123"</p>
