@@ -15,7 +15,7 @@ localPort = 5000
 externalPort = 80
 
 [workflows]
-runButton = "Start Kalani Virtual"
+runButton = "Start App"
 
 [[workflows.workflow]]
 name = "Project"
@@ -69,3 +69,16 @@ args = "npm run build"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "echo \"Deployment package prepared for khaleesiappdesign.com\""
+
+[[workflows.workflow]]
+name = "Start App"
+author = 42640585
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pkill -f \"node|npm\" || true"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
