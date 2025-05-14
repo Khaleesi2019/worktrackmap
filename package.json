@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@firebase/app": "^0.12.1",
+    "@firebase/auth": "^1.10.2",
     "@firebase/database": "^1.0.15",
     "@firebase/firestore": "^4.7.12",
     "@hookform/resolvers": "^3.10.0",
