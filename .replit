@@ -8,7 +8,7 @@ channel = "stable-24_05"
 [deployment]
 deploymentTarget = "autoscale"
 build = ["sh", "-c", "npm run build"]
-run = ["sh", "-c", "npm run start"]
+run = ["sh", "-c", "node server/index.js"]
 
 [[ports]]
 localPort = 5000
@@ -74,10 +74,6 @@ args = "echo \"Deployment package prepared for khaleesiappdesign.com\""
 name = "Start App"
 author = 42640585
 mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pkill -f \"node|npm\" || true"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
