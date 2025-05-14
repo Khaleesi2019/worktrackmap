@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTheme } from "@/context/ThemeContext";
 import { Button } from "@/components/ui/button";
+import NumericKeypad from "@/components/ui/NumericKeypad";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -132,6 +133,14 @@ export default function Login() {
           <div className="mt-4 text-center text-xs text-muted-foreground">
             <p>Demo credentials: username "admin", password "admin123"</p>
           </div>
+          <NumericKeypad onPinEnter={(pin) => {
+            if(pin === "1020") {
+              console.log("Access granted");
+              // Implement access logic here
+            } else {
+              console.log("Access denied");
+            }
+          }} />
         </CardContent>
       </Card>
     </div>
